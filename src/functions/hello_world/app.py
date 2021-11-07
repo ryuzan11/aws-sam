@@ -1,9 +1,14 @@
 import json
+from util import Logger
 
-# import requests
+log = Logger('hello')
 
 
 def lambda_handler(event, context):
+    http_method = event.get('httpMethod')
+    log.info(event)
+    log.info(http_method)
+
     """Sample pure Lambda function
 
     Parameters
@@ -36,7 +41,7 @@ def lambda_handler(event, context):
     return {
         "statusCode": 200,
         "body": json.dumps({
-            "message": "hello world",
+            "message": "hello world"
             # "location": ip.text.replace("\n", "")
         }),
     }

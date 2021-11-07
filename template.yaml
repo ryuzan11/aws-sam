@@ -5,18 +5,50 @@ Description: >
 
   Sample SAM Template for aws-sample-202111
 
+Parameters:
+  Env:
+    Type: String
+    AllowedValues:
+      - dev
+    Default: dev
+
+Mappings:
+  EnvMap:
+    dev:
+      VPCSecurityGroup: "sg-04a828ca65a3d8d8a"
+      PrivateSubnet1aId: "subnet-0cd486e477b94e4d7"
+
+
 # More info about Globals: https://github.com/awslabs/serverless-application-model/blob/master/docs/globals.rst
 Globals:
   Function:
+    Runtime: python3.9
     Timeout: 3
 
 Resources:
+  BaseLayer:
+    Type: AWS::Serverless::LayerVersion
+    Properties:
+      CompatibleRuntimes:
+        - python3.9
+      ContentUri: src/layers/base
+      Description: Base Layer
+      RetentionPolicy: Delete
+    Metadata:
+      BuildMethod: python3.9
+
   HelloWorldFunction:
     Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
     Properties:
-      CodeUri: hello_world/
+      CodeUri: src/functions/hello_world/
       Handler: app.lambda_handler
-      Runtime: python3.8
+      Layers:
+        - !Ref BaseLayer
+      VpcConfig:
+        SubnetIds:
+          - !FindInMap [ EnvMap, !Ref Env, PrivateSubnet1aId]
+        SecurityGroupIds:
+          - !FindInMap [ EnvMap, !Ref Env, VPCSecurityGroup]
       Architectures:
         - x86_64
       Events:
