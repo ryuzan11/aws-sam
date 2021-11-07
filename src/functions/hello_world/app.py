@@ -1,4 +1,5 @@
 import json
+from db.dynamo import create_dynamodb_client, create_scan_input, execute_scan
 from util import Logger
 
 log = Logger('hello')
@@ -9,39 +10,27 @@ def lambda_handler(event, context):
     log.info(event)
     log.info(http_method)
 
-    """Sample pure Lambda function
+    try:
 
-    Parameters
-    ----------
-    event: dict, required
-        API Gateway Lambda Proxy Input Format
+        dynamodb_client = create_dynamodb_client(region='ap-northeast-1')
 
-        Event doc: https://docs.aws.amazon.com/apigateway/latest/developerguide/set-up-lambda-proxy-integrations.html#api-gateway-simple-proxy-for-lambda-input-format
+        scan_input = create_scan_input('Item')
 
-    context: object, required
-        Lambda Context runtime methods and attributes
+        scan_response = execute_scan(dynamodb_client, scan_input)
 
-        Context doc: https://docs.aws.amazon.com/lambda/latest/dg/python-context-object.html
-
-    Returns
-    ------
-    API Gateway Lambda Proxy Output Format: dict
-
-        Return doc: https://docs.aws.amazon.com/apigateway/latest/developerguide/set-up-lambda-proxy-integrations.html
-    """
-
-    # try:
-    #     ip = requests.get("http://checkip.amazonaws.com/")
-    # except requests.RequestException as e:
-    #     # Send some context about this error to Lambda Logs
-    #     print(e)
-
-    #     raise e
+    except Exception as e:
+        log.error(e)
+        return {
+            'statusCode': 500,
+            'body': json.dumps({
+                'message': 'hello world'
+            })
+        }
 
     return {
-        "statusCode": 200,
-        "body": json.dumps({
-            "message": "hello world"
-            # "location": ip.text.replace("\n", "")
-        }),
+        'statusCode': 200,
+        'body': json.dumps({
+            'message': 'hello world',
+            'dbResponse': scan_response
+        })
     }
