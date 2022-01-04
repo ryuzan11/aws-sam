@@ -1,0 +1,134 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  aws-sample-202111
+
+  Sample SAM Template for aws-sample-202111
+
+Parameters:
+  Env:
+    Type: String
+    AllowedValues:
+      - dev
+    Default: dev
+  ProjectName:
+    Type: String
+    Default: "aws-infra"
+
+Mappings:
+  EnvMap:
+    dev:
+      VPCSecurityGroup: "dev-aws-infra-lambda-s3-trigger-sg"
+      PrivateSubnet1aId: "dev-aws-infra-private-subnet-1a"
+      LambdaCustomExecutionRole: "dev-aws-infra-lambda-custom-execution-role"
+      LambdaS3TriggerRole: "dev-aws-infra-lambda-s3-trigger-role"
+      S3BucketName: "trigger-2201"
+
+# More info about Globals: https://github.com/awslabs/serverless-application-model/blob/master/docs/globals.rst
+Globals:
+  Function:
+    Runtime: python3.9
+    Timeout: 10
+    Architectures:
+      - x86_64
+
+Resources:
+  BaseLayer:
+    Type: AWS::Serverless::LayerVersion
+    Properties:
+      CompatibleRuntimes:
+        - python3.9
+      ContentUri: src/layers/base
+      Description: Base Layer
+      RetentionPolicy: Delete
+    Metadata:
+      BuildMethod: python3.9
+
+  DynamoFunction:
+    Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
+    Properties:
+      FunctionName: Dynamo
+      CodeUri: src/functions/dynamo/
+      Handler: app.lambda_handler
+      Layers:
+        - !Ref BaseLayer
+      Role:
+        Fn::ImportValue: !FindInMap [ EnvMap, !Ref Env, LambdaCustomExecutionRole ]
+      VpcConfig:
+        SubnetIds:
+          - Fn::ImportValue: !FindInMap [ EnvMap, !Ref Env, PrivateSubnet1aId ]
+        SecurityGroupIds:
+          - Fn::ImportValue: !FindInMap [ EnvMap, !Ref Env, VPCSecurityGroup ]
+      Events:
+        Dynamo:
+          Type: Api # More info about API Event Source: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#api
+          Properties:
+            Path: /dynamo
+            Method: get
+
+  S3NotificationLambdaFunction:
+    Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
+    Properties:
+      FunctionName: "s3-notification"
+      CodeUri: src/functions/s3_notification/
+      Handler: app.lambda_handler
+      Role:
+        Fn::ImportValue: !FindInMap [ EnvMap, !Ref Env, LambdaS3TriggerRole ]
+      VpcConfig:
+        SubnetIds:
+          - Fn::ImportValue: !FindInMap [ EnvMap, !Ref Env, PrivateSubnet1aId ]
+        SecurityGroupIds:
+          - Fn::ImportValue: !FindInMap [ EnvMap, !Ref Env, VPCSecurityGroup ]
+
+  TestFunction:
+    Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
+    Properties:
+      FunctionName: "test-lambda"
+      CodeUri: src/functions/test_lambda/
+      Handler: app.lambda_handler
+      Role:
+        Fn::ImportValue: !FindInMap [ EnvMap, !Ref Env, LambdaCustomExecutionRole ]
+      VpcConfig:
+        SubnetIds:
+          - Fn::ImportValue: !FindInMap [ EnvMap, !Ref Env, PrivateSubnet1aId ]
+        SecurityGroupIds:
+          - Fn::ImportValue: !FindInMap [ EnvMap, !Ref Env, VPCSecurityGroup ]
+
+  LambdaInvokePermission:
+    Type: "AWS::Lambda::Permission"
+    Properties:
+      FunctionName: !GetAtt S3NotificationLambdaFunction.Arn
+      Action: "lambda:InvokeFunction"
+      Principal: s3.amazonaws.com
+      SourceAccount: !Ref "AWS::AccountId"
+      SourceArn: !Join
+        - ""
+        - - "arn:aws:s3:::"
+          - !FindInMap [ EnvMap, !Ref Env, S3BucketName ]
+
+  TriggerBucket:
+    Type: AWS::S3::Bucket
+    DependsOn: "LambdaInvokePermission"
+    Properties:
+      BucketName: !FindInMap [ EnvMap, !Ref Env, S3BucketName ]
+      AccessControl: Private
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      NotificationConfiguration:
+        LambdaConfigurations:
+          - Event: "s3:ObjectCreated:*"
+            Function: !GetAtt S3NotificationLambdaFunction.Arn
+
+Outputs:
+  # ServerlessRestApi is an implicit API created out of Events key under Serverless::Function
+  # Find out more about other implicit resources you can reference within SAM
+  # https://github.com/awslabs/serverless-application-model/blob/master/docs/internals/generated_resources.rst#api
+  DynamoApi:
+    Description: "API Gateway endpoint URL for Prod stage for Hello World function"
+    Value: !Sub "https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/dynamo/"
+  DynamoFunction:
+    Description: "Dynamo Lambda Function ARN"
+    Value: !GetAtt DynamoFunction.Arn
