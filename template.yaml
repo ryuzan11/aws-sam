@@ -28,7 +28,7 @@ Mappings:
 Globals:
   Function:
     Runtime: python3.9
-    Timeout: 10
+    Timeout: 30
     Architectures:
       - x86_64
 
@@ -44,6 +44,7 @@ Resources:
     Metadata:
       BuildMethod: python3.9
 
+  # TODO VPC,Subnetの設定をCFnにまとめる
   DynamoFunction:
     Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
     Properties:
@@ -56,9 +57,9 @@ Resources:
         Fn::ImportValue: !FindInMap [ EnvMap, !Ref Env, LambdaCustomExecutionRole ]
       VpcConfig:
         SubnetIds:
-          - Fn::ImportValue: !FindInMap [ EnvMap, !Ref Env, PrivateSubnet1aId ]
+          - subnet-0cd486e477b94e4d7
         SecurityGroupIds:
-          - Fn::ImportValue: !FindInMap [ EnvMap, !Ref Env, VPCSecurityGroup ]
+          - sg-04a828ca65a3d8d8a
       Events:
         Dynamo:
           Type: Api # More info about API Event Source: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#api
@@ -74,11 +75,14 @@ Resources:
       Handler: app.lambda_handler
       Role:
         Fn::ImportValue: !FindInMap [ EnvMap, !Ref Env, LambdaS3TriggerRole ]
-      VpcConfig:
-        SubnetIds:
-          - Fn::ImportValue: !FindInMap [ EnvMap, !Ref Env, PrivateSubnet1aId ]
-        SecurityGroupIds:
-          - Fn::ImportValue: !FindInMap [ EnvMap, !Ref Env, VPCSecurityGroup ]
+#      VpcConfig:
+#        SubnetIds:
+#          - Fn::ImportValue: !FindInMap [ EnvMap, !Ref Env, PrivateSubnet1aId ]
+#        SecurityGroupIds:
+#          - Fn::ImportValue: !FindInMap [ EnvMap, !Ref Env, VPCSecurityGroup ]
+      Environment:
+        Variables:
+          TEST_FUNCTION_NAME: !Ref TestFunction
 
   TestFunction:
     Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
@@ -86,6 +90,8 @@ Resources:
       FunctionName: "test-lambda"
       CodeUri: src/functions/test_lambda/
       Handler: app.lambda_handler
+      Layers:
+        - !Ref BaseLayer
       Role:
         Fn::ImportValue: !FindInMap [ EnvMap, !Ref Env, LambdaCustomExecutionRole ]
       VpcConfig:
