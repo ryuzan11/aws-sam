@@ -2,7 +2,7 @@ import json
 from db.dynamo import create_dynamodb_client, create_scan_input, execute_scan
 from util import Logger
 
-log = Logger('hello')
+log = Logger('dynamo')
 
 
 def lambda_handler(event, context):
